@@ -38,11 +38,14 @@ async function startServer() {
         }
       });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-        config: {
-          systemInstruction: `You are an expert React developer. Generate an interactive simulation component based on the user's request.
+      // Implement exponential backoff retry logic for robust transient error handling
+      const executeWithRetry = async (retriesLeft = 3, delay = 1000): Promise<any> => {
+        try {
+          return await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+            config: {
+              systemInstruction: `You are an expert React developer. Generate an interactive simulation component based on the user's request.
 CRITICAL RULES:
 
 1. ONLY return the raw, valid React component code (export default function...). Do not include markdown formatting or explanations.
@@ -57,8 +60,25 @@ CRITICAL RULES:
     • Hover states: 'hover:bg-accent', 'hover:text-accent-foreground'
     • Borders: 'border-border'
 5. Make it responsive, use proper padding (p-4, p-6), rounded corners (rounded-xl), and modern clean UI.`,
+            }
+          });
+        } catch (err: any) {
+          const errText = err.message || "";
+          const isTransient = errText.includes("503") || 
+                              errText.includes("UNAVAILABLE") || 
+                              errText.includes("high demand") || 
+                              errText.includes("overloaded");
+          
+          if (retriesLeft > 0 && isTransient) {
+            console.warn(`[Gemini Retry Handler] Encountered transient error (${errText}). Retrying in ${delay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            return executeWithRetry(retriesLeft - 1, delay * 2);
+          }
+          throw err;
         }
-      });
+      };
+
+      const response = await executeWithRetry();
 
       const generatedText = response.text || "";
       

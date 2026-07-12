@@ -278,6 +278,8 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<GeneratedHistoryItem[]>([]);
   const [activeSimulationTitle, setActiveSimulationTitle] = useState("Parking Lot Entry/Exit");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [isFixing, setIsFixing] = useState(false);
 
   // Load history from localStorage
   useEffect(() => {
@@ -392,6 +394,49 @@ export default function App() {
   const selectPreset = (presetPrompt: string, title: string) => {
     setPromptInput(presetPrompt);
     setActiveSimulationTitle(title);
+  };
+
+  const handleAutoFixError = async () => {
+    if (!validationError) return;
+    setIsFixing(true);
+    setErrorMessage(null);
+
+    const fixPrompt = `You are a self-healing React agent. The React simulation component you generated contains a runtime or compilation error: "${validationError}".
+Please analyze this error and fix the component code.
+CRITICAL RULES:
+1. Fix all undefined variables, missing imports, or incorrect hook usage.
+2. Ensure you STILL respect LIGHT MODE ONLY and semantic colors.
+3. Return ONLY the fully corrected raw React component code (export default function...). Do NOT include markdown block formatting or explanations.
+
+Here is the buggy code to fix:
+${generatedCode}`;
+
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: fixPrompt,
+          customApiKey: customApiKey.trim() || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to self-heal the component");
+      }
+
+      setGeneratedCode(data.code);
+      setValidationError(null);
+    } catch (err: any) {
+      console.error("Auto-Fix error:", err);
+      setErrorMessage("Auto-Fix failed: " + (err.message || "Unknown error"));
+    } finally {
+      setIsFixing(false);
+    }
   };
 
   return (
@@ -630,8 +675,44 @@ export default function App() {
           </div>
 
           {/* Embedded live preview sandboxed workspace */}
+          {validationError && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm transition-all duration-300">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-amber-100 rounded-xl text-amber-700 shrink-0">
+                  <AlertCircle className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <h4 className="font-sans font-bold text-sm text-amber-900">Live Preview Error Detected</h4>
+                  <p className="text-xs text-amber-700 font-mono mt-1 break-all bg-white/60 p-2.5 rounded-lg border border-amber-100/50 leading-relaxed max-w-lg">
+                    {validationError}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleAutoFixError}
+                disabled={isFixing}
+                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl flex items-center gap-2 text-xs shadow-md shadow-amber-600/10 cursor-pointer shrink-0 transition-all disabled:opacity-50"
+              >
+                {isFixing ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Auto-Healing Component...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>AI Auto-Fix & Heal</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
           <div className="flex-1 flex flex-col justify-stretch">
-            <ComponentPreview code={generatedCode} />
+            <ComponentPreview 
+              code={generatedCode} 
+              onValidationError={setValidationError}
+            />
           </div>
 
           {/* Design System Integrity Callout */}

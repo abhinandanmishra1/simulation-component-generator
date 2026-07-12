@@ -1,15 +1,6 @@
-import React, { useState } from "react";
-import { LiveProvider, LiveEditor, LiveError, LivePreview } from "react-live";
-import { 
-  Play, Pause, RotateCcw, Check, Plus, Minus, Clock, Coins, 
-  ShoppingCart, Trash, DollarSign, Search, Book, User, 
-  Activity, Calendar, Layers, Settings, AlertCircle, Info, 
-  CheckCircle, TrendingUp, TrendingDown, Filter, ArrowRight, 
-  ArrowLeft, ChevronRight, ChevronLeft, Star, Heart, Shield, 
-  CheckSquare, Square, RefreshCw, Sparkles, MapPin, Coffee, Pizza,
-  Sun, Moon, Volume2, VolumeX, Eye, EyeOff, Share2, Download, Copy,
-  CheckCircle2, AlertTriangle, HelpCircle, Lock, Unlock, Mail, Phone
-} from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { LiveProvider, LiveEditor, LiveError, LivePreview, LiveContext } from "react-live";
+import * as LucideIcons from "lucide-react";
 
 // Scope of variables and components available to the dynamic sandbox
 const liveScope = {
@@ -20,23 +11,33 @@ const liveScope = {
   useMemo: React.useMemo,
   useCallback: React.useCallback,
   
-  // Lucide Icons
-  Play, Pause, RotateCcw, Check, Plus, Minus, Clock, Coins, 
-  ShoppingCart, Trash, DollarSign, Search, Book, User, 
-  Activity, Calendar, Layers, Settings, AlertCircle, Info, 
-  CheckCircle, TrendingUp, TrendingDown, Filter, ArrowRight, 
-  ArrowLeft, ChevronRight, ChevronLeft, Star, Heart, Shield, 
-  CheckSquare, Square, RefreshCw, Sparkles, MapPin, Coffee, Pizza,
-  Sun, Moon, Volume2, VolumeX, Eye, EyeOff, Share2, Download, Copy,
-  CheckCircle2, AlertTriangle, HelpCircle, Lock, Unlock, Mail, Phone
+  // Spread all Lucide icons to guarantee any requested icon is defined
+  ...LucideIcons
 };
+
+// Component to read LiveProvider's error state and report it to the parent
+function LiveErrorListener({ onHasError }: { onHasError: (error: string | null) => void }) {
+  const context = React.useContext(LiveContext);
+  
+  useEffect(() => {
+    if (context && context.error) {
+      onHasError(context.error);
+    } else {
+      onHasError(null);
+    }
+  }, [context?.error, onHasError]);
+
+  return null;
+}
 
 interface ComponentPreviewProps {
   code: string;
+  onValidationError?: (error: string | null) => void;
 }
 
-export default function ComponentPreview({ code }: ComponentPreviewProps) {
+export default function ComponentPreview({ code, onValidationError }: ComponentPreviewProps) {
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
+
 
   // Robust function to strip imports so react-live doesn't crash on them
   const cleanCodeForPreview = (rawCode: string) => {
@@ -107,6 +108,7 @@ export default function ComponentPreview({ code }: ComponentPreviewProps) {
       {/* Content Area */}
       <div className="min-h-[480px] bg-background relative flex flex-col">
         <LiveProvider code={processedCode} scope={liveScope} noInline={true}>
+          <LiveErrorListener onHasError={(err) => onValidationError?.(err)} />
           {activeTab === "preview" ? (
             <div className="p-6 flex-1 flex flex-col items-stretch justify-start overflow-auto">
               {/* Dynamic Live Rendering Canvas */}
