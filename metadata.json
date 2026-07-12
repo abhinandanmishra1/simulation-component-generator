@@ -1,0 +1,6 @@
+{
+  "name": "Simulation Component Generator",
+  "description": "Generate interactive React simulation components using Gemini and preview them live.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
